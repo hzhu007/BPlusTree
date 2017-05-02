@@ -195,7 +195,7 @@ private:
     // split the current full leaf and insert a value into its parent
     void split_leaf(Leaf* curr_leaf);
     // Used in split: insert a key into a node's parent and link to the newly split nodes
-    void parent_insert(Node* curr_node, int key, Node* left, Node* right);
+    void parent_insert(Node* curr_node, int key, Node* right_half);
     // split the current full internal node and insert a value into its parent
     void split_internal(InternalNode* curr_node);
     // recusively print the nodes by level
@@ -353,65 +353,58 @@ void SeqBPlusTree::split_leaf(Leaf* curr_node) {
         return;
     }
 
-    Leaf* left = new Leaf();
-    Leaf* right = new Leaf();
-    for (int i = 0; i < curr_node->size/2; ++i) {
-        left->key_value[i] = curr_node->key_value[i];
-        left->size++;
-    }
-    left->id = curr_node->id;
+    Leaf* right_half = new Leaf();
     for (int i = curr_node->size/2, j = 0; i < curr_node->size; ++i, ++j) {
-        right->key_value[j] = curr_node->key_value[i];
-        right->size++;
+        right_half->key_value[j] = curr_node->key_value[i];
+        right_half->size++;
     }
-    right->id = ++id_accumulator;
+	right_half->id = ++id_accumulator;
 	++node_count;
-	// update siblings, from left to right
-	if (NULL != curr_node->left_sibling) {
-		curr_node->left_sibling->right_sibling = left;
-	}
-	left->left_sibling 	 = curr_node->left_sibling;
-	left->right_sibling  = right;
-	right->left_sibling  = left;
-	right->right_sibling = curr_node->right_sibling;
-	if (NULL != curr_node->right_sibling) {
-		curr_node->right_sibling->left_sibling = right;
-	}
 
-    parent_insert(curr_node, curr_node->key_value[curr_node->size/2].key, left, right);
+	int medianKey = curr_node->key_value[curr_node->size/2].key;
+	curr_node->size = curr_node->size/2;
+
+	// update siblings, from right to left
+	if (NULL != curr_node->right_sibling) {
+		curr_node->right_sibling->left_sibling = right_half;
+	}
+	right_half->right_sibling = curr_node->right_sibling;
+	right_half->left_sibling  = curr_node;
+	curr_node->right_sibling  = right_half;
+
+    parent_insert(curr_node, medianKey, right_half);
 }
 
 // Used in split: insert a key into a node's parent and link to the newly split nodes
-void SeqBPlusTree::parent_insert(Node* curr_node, int key, Node* left, Node* right) {
+void SeqBPlusTree::parent_insert(Node* curr_node, int key, Node* right_half) {
     InternalNode* parent = (InternalNode*) curr_node->parent;
-    // the split node is root
-    // need to add a new root
+    // if the split node is root, we need to add a new root
     if (parent == NULL) {
         parent = new InternalNode();
         depth++;
         parent->id = ++id_accumulator;
-		++node_count;
+		node_count++;
         root = parent;
     }
-    // if parent is full, we need to split the parent
+    // if parent is full, we need to split the parent afterwards
     bool parent_split = parent->isFull();
 
     // ++ first because there is a dummy key INT_MAX at key_ref[size]
     parent->key_ref[++(parent->size)].key = key;
-    parent->key_ref[parent->size].reference = left;
+    parent->key_ref[parent->size].reference = curr_node;
     sort_entry_by_key(parent);
     // Search for the first key-reference pair whose key is greater than the
     // inserted key, this pair is also pointed to the current node
-    // Now redirect it to the right
+    // Now redirect it to the right.
     // Need to use <= because also need to check the dummy key INT_MAX at key_ref[size]
     for (int i = 0; i <= parent->size; ++i) {
         if (key < parent->key_ref[i].key) {
-            parent->key_ref[i].reference = right;
+            parent->key_ref[i].reference = right_half;
             break;
         }
     }
-    left->parent  = parent;
-    right->parent = parent;
+    curr_node->parent  = parent;
+    right_half->parent = parent;
 
     // if parent is full, we need to split the parent
     if (parent_split) {
@@ -426,42 +419,31 @@ void SeqBPlusTree::split_internal(InternalNode* curr_node) {
         return;
     }
 
-    InternalNode* left = new InternalNode();
-    InternalNode* right = new InternalNode();
-    for (int i = 0; i <= curr_node->size / 2; ++i) {
-        left->key_ref[i] = curr_node->key_ref[i];
-        left->size++;
-        Node* child = curr_node->key_ref[i].reference;
-        child->parent = left;
-    }
-    left->size--; // -1 because there is a dummy key INT_MAX at key_ref[size]
-    left->key_ref[curr_node->size/2].key = INT_MAX;
-    left->id = curr_node->id;
-    int medianKey = curr_node->key_ref[curr_node->size/2].key;
+    InternalNode* right_half = new InternalNode();
     // Need to use <= because we also want to copy the dummy key INT_MAX at key_ref[size]
     for (int i = curr_node->size/2 + 1, j = 0; i <= curr_node->size; ++i, ++j) {
-        right->key_ref[j] = curr_node->key_ref[i];
-        right->size++;
+        right_half->key_ref[j] = curr_node->key_ref[i];
+        right_half->size++;
         Node* child = curr_node->key_ref[i].reference;
-        child->parent = right;
+        child->parent = right_half;
     }
-    right->size--; // -1 because there is a dummy key INT_MAX at key_ref[size]
-    right->id = ++id_accumulator;
+    right_half->size--; // -1 because there is a dummy key INT_MAX at key_ref[size]
+    right_half->id = ++id_accumulator;
 	++node_count;
 
-	// update siblings, from left to right
-	if (NULL != curr_node->left_sibling) {
-		curr_node->left_sibling->right_sibling = left;
-	}
-	left->left_sibling 	 = curr_node->left_sibling;
-	left->right_sibling  = right;
-	right->left_sibling  = left;
-	right->right_sibling = curr_node->right_sibling;
-	if (NULL != curr_node->right_sibling) {
-		curr_node->right_sibling->left_sibling = right;
-	}
+	int medianKey = curr_node->key_ref[curr_node->size/2].key;
+	curr_node->size = curr_node->size / 2;
+	curr_node->key_ref[curr_node->size].key = INT_MAX;
 
-    parent_insert(curr_node, medianKey, left, right);
+	// update siblings, from right to left
+	if (NULL != curr_node->right_sibling) {
+		curr_node->right_sibling->left_sibling = right_half;
+	}
+	right_half->right_sibling = curr_node->right_sibling;
+	right_half->left_sibling  = curr_node;
+	curr_node->right_sibling  = right_half;
+
+    parent_insert(curr_node, medianKey, right_half);
 }
 
 // recusively print the nodes by level

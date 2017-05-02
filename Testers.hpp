@@ -6,7 +6,7 @@ void sequentialTest() {
     // try to repeat the process from http://www.cburch.com/cs/340/reading/btree/
 
     /* Insertion */
-    /* phase 1 */
+//    /* phase 1 */
 //    tree.insert(1, 1);
 //    //    cout << "insert 1 finish";
 //    tree.insert(4, 4);
@@ -34,11 +34,11 @@ void sequentialTest() {
 /* Expect
           [13,             M]
          /                 \
-     [9, 11, M]          [16,  M]
-    /    \    \         /      \
+     [9, 11, M]         [16,  M]
+    /    \    \         /     \
    1,4  9,10  11,12  13,15  16,20,25
  */
-    // exit(0);
+//    exit(0);
 
     /* Deletion */
     /* phase 1: initialization */
@@ -170,9 +170,9 @@ void sequentialTest() {
     tree.insert(42, 42);
     tree.insert(48, 48);
 
-    // tree.print();
-    // cout << endl;
-    // exit(0);
+     tree.print();
+     cout << endl;
+     exit(0);
     /* Expect
                 [40,             70,               85           M]
                  /                |                |            \
@@ -238,9 +238,9 @@ void sequentialTest() {
         15,30  50,60   70,73,80  85,90,94
     */
     tree.remove(15);
-    tree.print();
-    cout << endl;
-    exit(0);
+    // tree.print();
+    // cout << endl;
+    // exit(0);
 /* Expect
            [70,     85,      M]
             /        |        \
