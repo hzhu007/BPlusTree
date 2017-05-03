@@ -44,7 +44,7 @@ void sequentialTestForInsertion() {
 void sequentialTestForDeletion() {
     /* Deletion */
     /* phase 1: initialization */
-    tree = SeqBPlusTree();
+    SeqBPlusTree tree = SeqBPlusTree();
     tree.insert(1, 1);
     tree.insert(40, 40);
     tree.insert(60, 60);
