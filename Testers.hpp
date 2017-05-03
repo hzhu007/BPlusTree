@@ -1,36 +1,36 @@
 #ifndef Testers_hpp
 #define Testers_hpp
 
-void sequentialTest() {
+void sequentialTestForInsertion() {
     SeqBPlusTree tree = SeqBPlusTree();
     // try to repeat the process from http://www.cburch.com/cs/340/reading/btree/
 
     /* Insertion */
-//    /* phase 1 */
-//    tree.insert(1, 1);
-//    //    cout << "insert 1 finish";
-//    tree.insert(4, 4);
-//    tree.insert(16, 16);
-//    tree.insert(25, 25);
-////    tree.print();
-////    cout << endl;
-////    exit(0);
-//    /* phase 2 */
-//    tree.insert(9, 9);
-//    tree.insert(20, 20);
-//    tree.insert(13, 13);
-////    tree.print();
-////    cout << endl;
-//    /* phase 3 */
-//    tree.insert(15, 15);
-//    tree.insert(10, 10);
-//    tree.insert(11, 11);
-////    tree.print();
-////    cout << endl;
-//    /* phase 4 */
-//    tree.insert(12, 12);
-////    tree.print();
-////    cout << endl;
+    /* phase 1 */
+    tree.insert(1, 1);
+    //    cout << "insert 1 finish";
+    tree.insert(4, 4);
+    tree.insert(16, 16);
+    tree.insert(25, 25);
+//    tree.print();
+//    cout << endl;
+//    exit(0);
+    /* phase 2 */
+    tree.insert(9, 9);
+    tree.insert(20, 20);
+    tree.insert(13, 13);
+//    tree.print();
+//    cout << endl;
+    /* phase 3 */
+    tree.insert(15, 15);
+    tree.insert(10, 10);
+    tree.insert(11, 11);
+//    tree.print();
+//    cout << endl;
+    /* phase 4 */
+    tree.insert(12, 12);
+//    tree.print();
+//    cout << endl;
 /* Expect
           [13,             M]
          /                 \
@@ -38,8 +38,10 @@ void sequentialTest() {
     /    \    \         /     \
    1,4  9,10  11,12  13,15  16,20,25
  */
-//    exit(0);
+    exit(0);
+}
 
+void sequentialTestForDeletion() {
     /* Deletion */
     /* phase 1: initialization */
     tree = SeqBPlusTree();
@@ -170,9 +172,9 @@ void sequentialTest() {
     tree.insert(42, 42);
     tree.insert(48, 48);
 
-     tree.print();
-     cout << endl;
-     exit(0);
+    // tree.print();
+    // cout << endl;
+    // exit(0);
     /* Expect
                 [40,             70,               85           M]
                  /                |                |            \
@@ -181,14 +183,14 @@ void sequentialTest() {
         15,16,20  30,35  40,42  48,50  58,60  70,73  80,84  85,90  94,98
     */
     tree.remove(98);
-    // tree.print();
-    // cout << endl;
-    // exit(0);
+    tree.print();
+    cout << endl;
+    exit(0);
 /* Expect
             [40,             70,                   M
              /                |                    |
        [30,    M]      [48,   58,     M]    [80,   85,    M]
-       /       |        /      |      \      /     \      \
+       /       |        /      |      \      /     |      \
     15,16,20  30,35  40,42  48,50  58,60  70,73  80,84  85,90,94
 */
 

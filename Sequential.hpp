@@ -194,7 +194,7 @@ private:
 
     // split the current full leaf and insert a value into its parent
     void split_leaf(Leaf* curr_leaf);
-    // Used in split: insert a key into a node's parent and link to the newly split nodes
+	// Used in split: insert a key into a node's parent and link to the newly split nodes (right_half)
     void parent_insert(Node* curr_node, int key, Node* right_half);
     // split the current full internal node and insert a value into its parent
     void split_internal(InternalNode* curr_node);
@@ -263,19 +263,19 @@ bool SeqBPlusTree::insert(int key, int value) {
     return true;
 }
 
-// return tree if the key-value pair is removed
+// return true if the key-value pair is successfully removed
 // otherwise return false if the key doesn't exist
 bool SeqBPlusTree::remove(int key) {
     Leaf* leaf = leaf_search(key, root);
+	if (leaf->size == 0) {
+		cerr << "Error: Trying to remove from an empty tree." << endl;
+		return false;
+	}
+
     bool keyNotExist = true;
     for (int i = 0; i < leaf->size; ++i) {
         if (key == leaf->key_value[i].key) {
             keyNotExist = false;
-            // // if the first key is removed, also need to edit the parent seperator
-            // if (i == 0) {
-            //     KeyReferencePair* key_ref_in_parent = get_key_ref_pair_from_parent(leaf);
-            //     key_ref_in_parent->key = leaf->key_value[1].key;
-            // }
             // move the successive key-value forward
             for (int j = i; j < leaf->size - 1; ++j) {
                 leaf->key_value[j] = leaf->key_value[j+1];
@@ -373,9 +373,11 @@ void SeqBPlusTree::split_leaf(Leaf* curr_node) {
     curr_node->right_sibling  = right_half;
 
     parent_insert(curr_node, medianKey, right_half);
+
+	return;
 }
 
-// Used in split: insert a key into a node's parent and link to the newly split nodes
+// Used in split: insert a key into a node's parent and link to the newly split nodes (right_half)
 void SeqBPlusTree::parent_insert(Node* curr_node, int key, Node* right_half) {
     InternalNode* parent = (InternalNode*) curr_node->parent;
     // if the split node is root, we need to add a new root
@@ -390,7 +392,7 @@ void SeqBPlusTree::parent_insert(Node* curr_node, int key, Node* right_half) {
     bool parent_split = parent->isFull();
 
     // ++ first because there is a dummy key INT_MAX at key_ref[size]
-    parent->key_ref[++(parent->size)].key = key;
+    parent->key_ref[++(parent->size)].key 	= key;
     parent->key_ref[parent->size].reference = curr_node;
     sort_entry_by_key(parent);
     // Search for the first key-reference pair whose key is greater than the
@@ -410,6 +412,8 @@ void SeqBPlusTree::parent_insert(Node* curr_node, int key, Node* right_half) {
     if (parent_split) {
         split_internal(parent);
     }
+
+	return;
 }
 
 // split the current full internal node and insert a value into its parent
@@ -444,6 +448,8 @@ void SeqBPlusTree::split_internal(InternalNode* curr_node) {
     curr_node->right_sibling  = right_half;
 
     parent_insert(curr_node, medianKey, right_half);
+
+	return;
 }
 
 // recusively print the nodes by level
@@ -489,10 +495,12 @@ KeyReferencePair* SeqBPlusTree::get_key_ref_pair_from_parent(Node* curr_node) {
 // If the left sibling exists, first try to borrow the largest key-value pair from it.
 // If the sibling is also close to deficient, merge the two leaves by appending the
 // key-values from the current leaf to that sibling. Then delete the current leaf
-// and shift other leaves with the same parent left and edit the parent accordingly.
+// and shift other leaves with the same parent left and update the parent accordingly.
+// Note the two leaves may not be in the same subtree, borrowing or merging may
+// affect the seperators in there first common root so we need to update that node.
 // If the left sibling doesn't exist, i.e. the current leaf is the leftmost one,
 // do the same process to the right sibling, except that we borrow the smallest
-// key-value pair.
+// key-value pair from the right sibling.
 void SeqBPlusTree::borrow_merge_leaf(Leaf* curr_leaf) {
     Leaf* left_sib = (Leaf*)curr_leaf->left_sibling;
     if (left_sib) { // left sibling exists
@@ -515,7 +523,7 @@ void SeqBPlusTree::borrow_merge_leaf(Leaf* curr_leaf) {
     return;
 }
 
-// The current leaf borrows a key-value pair from its sibling
+// The current leaf borrows a key-value pair from its sibling.
 // If borrowing from left sibling, borrow the largest. If borrowing from right
 // sibling, borrow the smallest. Then update the reference to the current leaf
 // but no need to update the reference to the sibling as the remaining keys are
@@ -539,7 +547,7 @@ void SeqBPlusTree::borrow_leaf(Leaf* curr_leaf, Leaf* sibling, bool fromLeft) {
     // Also need to update the reference in the firsr common ancestor because
     // borrowing may affect branching at that node. Note the borrowed key will
     // become the minimum key (from left) or the maximum key (from right) in the
-    // subtree where curr_node lies.
+    // subtree where curr_leaf lies.
     if (fromLeft) {
         Node *last_leaf_iter = curr_leaf, *last_sib_iter = sibling;
         Node *leaf_iter = curr_leaf->parent, *sib_iter = sibling->parent;
@@ -549,28 +557,35 @@ void SeqBPlusTree::borrow_leaf(Leaf* curr_leaf, Leaf* sibling, bool fromLeft) {
             last_sib_iter = sib_iter;
             sib_iter = sib_iter->parent;
         }
-        KeyReferencePair* key_ref_to_sib_in_ancestor = get_key_ref_pair_from_parent(last_sib_iter);
+        KeyReferencePair* key_ref_to_sib_in_ancestor =
+			get_key_ref_pair_from_parent(last_sib_iter);
         key_ref_to_sib_in_ancestor->key = borrowed_key;
     }
     else {
         // Borrowing from right only happens if curr_leaf is the leftmost one,
         // and the branching factor is at least two, so it must share the same
         // parent with its right sibling.
-        KeyReferencePair* key_ref_to_curr_in_parent = get_key_ref_pair_from_parent(curr_leaf);
+        KeyReferencePair* key_ref_to_curr_in_parent =
+			get_key_ref_pair_from_parent(curr_leaf);
         key_ref_to_curr_in_parent->key = sibling->key_value[0].key;
     }
+
+	return;
 }
 
 // the current leaf merges with its sibling
 void SeqBPlusTree::merge_leaf(Leaf* curr_leaf, Leaf* sibling, bool toLeft) {
     InternalNode* parent = (InternalNode*)curr_leaf->parent;
-    KeyReferencePair* key_ref_to_curr_in_parent = get_key_ref_pair_from_parent(curr_leaf);
-    bool isDummy = INT_MAX == key_ref_to_curr_in_parent->key;
     if (toLeft) { // merge to left sibling
-        for (int i = 0; i < curr_leaf->size; ++i) {
-            sibling->key_value[sibling->size + i] = curr_leaf->key_value[i];
+		Leaf* left_sib = sibling;
+		KeyReferencePair* key_ref_to_curr_in_parent =
+			get_key_ref_pair_from_parent(curr_leaf);
+	    bool curr_parent_is_dummy = INT_MAX == key_ref_to_curr_in_parent->key;
+
+		for (int i = 0; i < curr_leaf->size; ++i) {
+            left_sib->key_value[left_sib->size + i] = curr_leaf->key_value[i];
         }
-        sibling->size += curr_leaf->size;
+        left_sib->size += curr_leaf->size;
 
         // find the key_ref pair in the parent of curr_leaf and remove it by
         // moving its successive key-ref pairs forward.
@@ -585,44 +600,26 @@ void SeqBPlusTree::merge_leaf(Leaf* curr_leaf, Leaf* sibling, bool toLeft) {
         parent->size--;
 
         // Also redirect siblings.
-        sibling->right_sibling = curr_leaf->right_sibling;
+        left_sib->right_sibling = curr_leaf->right_sibling;
         if (NULL != curr_leaf->right_sibling)
-            curr_leaf->right_sibling->left_sibling = sibling;
-    }
-    else { // merge to right sibling
-        for (int i = 0; i < curr_leaf->size; ++i) {
-            sibling->key_value[sibling->size + i] = curr_leaf->key_value[i];
-        }
-        sibling->size += curr_leaf->size;
-        sort_entry_by_key(sibling);
+            curr_leaf->right_sibling->left_sibling = left_sib;
 
-        // As merge to right only happens if the curr_leaf is the leftmost one,
-        // only need to modify the references in the parent.
-        for (int i = 0; i < parent->size; ++i) {
-            parent->key_ref[i] = parent->key_ref[i+1];
-        }
-        parent->size--;
-
-        // Also redirect siblings.
-        sibling->left_sibling = curr_leaf->left_sibling;
-    }
-
-    // The effect of merging is the same as borrowing so we need to update the
-    // reference in the first common ancestor.
-    Node *last_leaf_iter = curr_leaf, *last_sib_iter = sibling;
-    Node *leaf_iter = curr_leaf->parent, *sib_iter = sibling->parent;
-    while (leaf_iter != sib_iter) {
-        last_leaf_iter = leaf_iter;
-        leaf_iter = leaf_iter->parent;
-        last_sib_iter = sib_iter;
-        sib_iter = sib_iter->parent;
-    }
-    if (toLeft) {
+		// The effect of merging to left is the same as borrowing from left so
+	    // we need to update the reference in the first common ancestor.
+		Node *last_leaf_iter = curr_leaf, *last_sib_iter = left_sib;
+	    Node *leaf_iter = curr_leaf->parent, *sib_iter = left_sib->parent;
+	    while (leaf_iter != sib_iter) {
+	        last_leaf_iter = leaf_iter;
+	        leaf_iter = leaf_iter->parent;
+	        last_sib_iter = sib_iter;
+	        sib_iter = sib_iter->parent;
+	    }
         KeyReferencePair* key_ref_to_sib_in_ancestor =
             get_key_ref_pair_from_parent(last_sib_iter);
-        // curr_node may be the rightmost one under its parent so after merging
-        // the left sibling will become the rightmost one.
-        if (isDummy) {
+        // curr_leaf may be the rightmost one under its parent so its left sibling
+		// must share the same parent with it and after merging the left sibling
+		// will become the rightmost one.
+        if (curr_parent_is_dummy) {
             key_ref_to_sib_in_ancestor->key = INT_MAX;
         }
         else {
@@ -637,14 +634,32 @@ void SeqBPlusTree::merge_leaf(Leaf* curr_leaf, Leaf* sibling, bool toLeft) {
             int min_key_right = right_sib->key_value[0].key;
             key_ref_to_sib_in_ancestor->key = min_key_right;
         }
-
     }
-    // Merging to right only happens if curr_leaf is the leftmost one, and the
-    // branching factor is at least two, so it must share the same parent with
-    // its right sibling. So merging to right doesn't need to modify any reference
-    // above.
+    else { // merge to right sibling
+		Leaf* right_sib = sibling;
+        for (int i = 0; i < curr_leaf->size; ++i) {
+            right_sib->key_value[right_sib->size + i] = curr_leaf->key_value[i];
+        }
+        right_sib->size += curr_leaf->size;
+        sort_entry_by_key(right_sib);
+
+        // As merge to right only happens if the curr_leaf is the leftmost one,
+		// and the branching factor is at least two, so it must share the same
+		// parent with its right sibling. So merging to right doesn't need to
+	    // modify any reference above, only needs to modify the references in
+		// the parent.
+        for (int i = 0; i < parent->size; ++i) {
+            parent->key_ref[i] = parent->key_ref[i+1];
+        }
+        parent->size--;
+
+        // Also redirect siblings.
+        right_sib->left_sibling = curr_leaf->left_sibling;
+    }
 
     node_count--;
+	delete curr_leaf;
+
     if (parent->isDeficient()) {
         borrow_merge_internal(parent);
     }
@@ -657,6 +672,8 @@ void SeqBPlusTree::merge_leaf(Leaf* curr_leaf, Leaf* sibling, bool toLeft) {
 // If the sibling is also close to deficient, merge the two nodes by appending the
 // key-references from the current node to that sibling. Then delete the current node
 // and update the references in the parent accordingly.
+// Note the two internal nodes may not be in the same subtree, borrowing or merging
+// may affect the seperators in there first common root so we need to update that node.
 // If the left sibling doesn't exist, i.e. the current node is the leftmost, do the
 // same process to the right sibling, except that we try borrowing the smallest
 // key-reference pair.
@@ -690,22 +707,22 @@ void SeqBPlusTree::borrow_merge_internal(InternalNode* curr_node) {
 void SeqBPlusTree::borrow_internal(InternalNode* curr_node, InternalNode* sibling, bool fromLeft) {
     Node* borrowed_node = NULL;
     if (fromLeft) { // borrow from left sibling
-        borrowed_node = sibling->key_ref[sibling->size].reference;
+		InternalNode* left_sibling = sibling;
+        borrowed_node = left_sibling->key_ref[left_sibling->size].reference;
         // ++ first because there is a dummy key INT_MAX at key_ref[size]
-        curr_node->key_ref[++curr_node->size] = sibling->key_ref[sibling->size--];
-        // borrowed one is the dummy reference with key = INT_MAX, so need to modify
+        curr_node->key_ref[++curr_node->size] = left_sibling->key_ref[left_sibling->size--];
+        // borrowed one is a dummy reference with key = INT_MAX, so need to modify
         // its key to the smallest key in the first reference
         curr_node->key_ref[curr_node->size].key = min_key_in_subtree(curr_node);
         sort_entry_by_key(curr_node);
         // set the key of the last key-reference pair to INT_MAX
-        sibling->key_ref[sibling->size].key = INT_MAX;
-        curr_node->key_ref[curr_node->size].key = INT_MAX;
+        left_sibling->key_ref[left_sibling->size].key = INT_MAX;
 
-        // Also need to update the reference in the firsr common ancestor because
+        // Also need to update the reference in the first common ancestor because
         // borrowing may affect branching at that node. Note the borrowed key will
         // become the minimum key in the subtree where curr_node lies.
-        Node *last_node_iter = curr_node, *last_sib_iter = sibling;
-        Node *node_iter = curr_node->parent, *sib_iter = sibling->parent;
+        Node *last_node_iter = curr_node, *last_sib_iter = left_sibling;
+        Node *node_iter = curr_node->parent, *sib_iter = left_sibling->parent;
         while (node_iter != sib_iter) {
             last_node_iter = node_iter;
             node_iter = node_iter->parent;
@@ -716,18 +733,19 @@ void SeqBPlusTree::borrow_internal(InternalNode* curr_node, InternalNode* siblin
         key_ref_to_sib_in_ancestor->key = min_key_in_subtree(curr_node);
     }
     else { // borrow from right sibling
-        borrowed_node = sibling->key_ref[0].reference;
+		InternalNode* right_sibling = sibling;
+        borrowed_node = right_sibling->key_ref[0].reference;
         // ++ first because there is a dummy key INT_MAX at key_ref[size]
-        curr_node->key_ref[++curr_node->size] = sibling->key_ref[0];
+        curr_node->key_ref[++curr_node->size] = right_sibling->key_ref[0];
         // delete the borrowed key-reference pair by moving sibling's successive
         // key-reference pairs forward
-        for (int i = 0; i < sibling->size; ++i) {
-            sibling->key_ref[i] = sibling->key_ref[i+1];
+        for (int i = 0; i < right_sibling->size; ++i) {
+            right_sibling->key_ref[i] = right_sibling->key_ref[i+1];
         }
-        sibling->size--;
-        // the remaining key-reference pairs in the current node may contain the
-        // dummy reference with key = INT_MAX, so need to modify its key to the
-        // smallest key in the borrowed reference
+        right_sibling->size--;
+        // the remaining key-reference pairs in the current node contains a dummy
+        // reference with key = INT_MAX, so need to modify its key to the smallest
+        // key in the borrowed reference
         int min_key_in_borrowed = min_key_in_subtree(curr_node->key_ref[curr_node->size].reference);
         curr_node->key_ref[curr_node->size-1].key = min_key_in_borrowed;
         curr_node->key_ref[curr_node->size].key   = INT_MAX;
@@ -746,16 +764,19 @@ void SeqBPlusTree::borrow_internal(InternalNode* curr_node, InternalNode* siblin
 void SeqBPlusTree::merge_internal(InternalNode* curr_node, InternalNode* sibling, bool toLeft) {
     InternalNode* parent = (InternalNode*)curr_node->parent;
     KeyReferencePair* key_ref_to_curr_in_parent = get_key_ref_pair_from_parent(curr_node);
-    bool isDummy = INT_MAX == key_ref_to_curr_in_parent->key;
+    bool curr_parent_is_dummy = INT_MAX == key_ref_to_curr_in_parent->key;
     if (toLeft) { // merge to left sibling
+		InternalNode* left_sib = sibling;
+		// +1 because there is a dummy key INT_MAX at key_ref[size]
         for (int i = 0; i <= curr_node->size; ++i) {
-            sibling->key_ref[sibling->size + 1 + i] = curr_node->key_ref[i];
-            sibling->key_ref[sibling->size + 1 + i].reference->parent = sibling;
+            left_sib->key_ref[left_sib->size + 1 + i] = curr_node->key_ref[i];
+            left_sib->key_ref[left_sib->size + 1 + i].reference->parent = left_sib;
         }
         // There may be two dummy keys equal INT_MAX after merging.
         // As the left side is always smaller, edit the dummy key in the left sibling
-        sibling->key_ref[sibling->size].key = min_key_in_subtree(curr_node->key_ref[0].reference);
-        sibling->size += curr_node->size + 1;
+        left_sib->key_ref[left_sib->size].key =
+			min_key_in_subtree(curr_node->key_ref[0].reference);
+        left_sib->size += curr_node->size + 1;
 
         // find the key_ref pair in the parent of curr_node and remove it by
         // moving its successive key-ref pairs forward.
@@ -770,45 +791,23 @@ void SeqBPlusTree::merge_internal(InternalNode* curr_node, InternalNode* sibling
         parent->size--;
 
         // Also redirect siblings.
-        sibling->right_sibling = curr_node->right_sibling;
+        left_sib->right_sibling = curr_node->right_sibling;
         if (NULL != curr_node->right_sibling)
-            curr_node->right_sibling->left_sibling = sibling;
-    }
-    else { // merge to right sibling
-        for (int i = 0; i <= curr_node->size; ++i) {
-            sibling->key_ref[sibling->size + 1 + i] = curr_node->key_ref[i];
-            sibling->key_ref[sibling->size + 1 + i].reference->parent = sibling;
-        }
-        sibling->size += curr_node->size + 1;
-        // There may be two dummy keys equal INT_MAX after merging.
-        // As the right side is always larger, edit the dummy key from the curr_node
-        sibling->key_ref[sibling->size].key = min_key_in_subtree(sibling->key_ref[0].reference);
-        sort_entry_by_key(sibling);
+            curr_node->right_sibling->left_sibling = left_sib;
 
-        // As merge to right only happens if the curr_node is the leftmost one,
-        // only need to modify the references in the parent.
-        for (int i = 0; i < parent->size; ++i) {
-            parent->key_ref[i] = parent->key_ref[i+1];
-        }
-        parent->size--;
-
-        // Also redirect siblings.
-        sibling->left_sibling = curr_node->left_sibling;
-    }
-
-    // The effect of merging is the same as borrowing so we need to update the
-    // reference in the first common ancestor.
-    Node *last_node_iter = curr_node, *last_sib_iter = sibling;
-    Node *node_iter = curr_node->parent, *sib_iter = sibling->parent;
-    while (node_iter != sib_iter) {
-        last_node_iter = node_iter;
-        node_iter = node_iter->parent;
-        last_sib_iter = sib_iter;
-        sib_iter = sib_iter->parent;
-    }
-    if (toLeft) {
-        KeyReferencePair* key_ref_to_sib_in_ancestor = get_key_ref_pair_from_parent(last_sib_iter);
-        if (isDummy) {
+		// The effect of merging is the same as borrowing so we need to update the
+	    // reference in the first common ancestor.
+		Node *last_node_iter = curr_node, *last_sib_iter = left_sib;
+	    Node *node_iter = curr_node->parent, *sib_iter = left_sib->parent;
+	    while (node_iter != sib_iter) {
+	        last_node_iter = node_iter;
+	        node_iter = node_iter->parent;
+	        last_sib_iter = sib_iter;
+	        sib_iter = sib_iter->parent;
+	    }
+        KeyReferencePair* key_ref_to_sib_in_ancestor =
+			get_key_ref_pair_from_parent(last_sib_iter);
+        if (curr_parent_is_dummy) {
             key_ref_to_sib_in_ancestor->key = INT_MAX;
         }
         else {
@@ -823,14 +822,37 @@ void SeqBPlusTree::merge_internal(InternalNode* curr_node, InternalNode* sibling
             int min_key_right = min_key_in_subtree(right_sib->key_ref[0].reference);
             key_ref_to_sib_in_ancestor->key = min_key_right;
         }
-
     }
-    // Merging to right only happens if curr_node is the leftmost one, and the
-    // branching factor is at least two, so it must share the same parent with
-    // its right sibling. So merging to right doesn't need to modify any reference
-    // above.
+    else { // merge to right sibling
+		InternalNode* right_sib = sibling;
+		// +1 because there is a dummy key INT_MAX at key_ref[size]
+        for (int i = 0; i <= curr_node->size; ++i) {
+            right_sib->key_ref[right_sib->size + 1 + i] = curr_node->key_ref[i];
+            right_sib->key_ref[right_sib->size + 1 + i].reference->parent = right_sib;
+        }
+        right_sib->size += curr_node->size + 1;
+        // There may be two dummy keys equal INT_MAX after merging.
+        // As the right side is always larger, edit the dummy key from the curr_node
+        right_sib->key_ref[right_sib->size].key =
+			min_key_in_subtree(right_sib->key_ref[0].reference);
+        sort_entry_by_key(right_sib);
+
+        // As merge to right only happens if the curr_node is the leftmost one,
+		// and the branching factor is at least two, so it must share the same
+	    // parent with its right sibling.
+        // So only need to modify the references in the parent.
+        for (int i = 0; i < parent->size; ++i) {
+            parent->key_ref[i] = parent->key_ref[i+1];
+        }
+        parent->size--;
+
+        // Also redirect siblings.
+        right_sib->left_sibling = curr_node->left_sibling;
+    }
 
     node_count--;
+	delete curr_node;
+
     if (parent->isDeficient()) {
         if (parent->isRoot()) {
             Node* oldRoot = root;

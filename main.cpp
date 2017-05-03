@@ -4,5 +4,6 @@
 using namespace std;
 
 int main() {
-    sequentialTest();
+    // sequentialTestForInsertion();
+    sequentialTestForDeletion();
 }
